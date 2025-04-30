@@ -52,11 +52,12 @@
             position: absolute;
             top: -4px;
             left: -4px;
-            width: calc(100% + 8px); /* Set width to match the timer box plus padding */
-            height: calc(100% + 8px); /* Set height to match the timer box plus padding */
+            width: calc(100% + 8px);
+            height: calc(100% + 8px);
             border-radius: 8px;
             z-index: 0;
             overflow: hidden;
+            filter: blur(4px); /* Added motion blur effect */
         }
         
         .rainbow-glow::before {
@@ -67,14 +68,32 @@
             right: -50%;
             bottom: 0;
             background: linear-gradient(90deg, 
-                rgba(255, 182, 193, 0.5), /* Light pink */
-                rgba(173, 216, 230, 0.5), /* Light blue */
-                rgba(152, 251, 152, 0.5), /* Light green */
-                rgba(238, 232, 170, 0.5), /* Light yellow */
-                rgba(221, 160, 221, 0.5), /* Light purple */
-                rgba(255, 182, 193, 0.5)  /* Light pink again to loop */
+                rgba(255, 182, 193, 0.7), /* Light pink */
+                rgba(173, 216, 230, 0.7), /* Light blue */
+                rgba(152, 251, 152, 0.7), /* Light green */
+                rgba(238, 232, 170, 0.7), /* Light yellow */
+                rgba(221, 160, 221, 0.7), /* Light purple */
+                rgba(255, 182, 193, 0.7)  /* Light pink again to loop */
             );
-            animation: rainbow-rotate 4s linear infinite;
+            animation: rainbow-rotate 2s linear infinite; /* Faster animation */
+            filter: blur(6px); /* Additional blur for more motion effect */
+        }
+        
+        .gym-container {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .gym-box {
+            font-size: 24px;
+            font-family: monospace;
+            background-color: #fff;
+            padding: 10px 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            text-align: center;
+            position: relative;
+            z-index: 1;
         }
         
         @keyframes rainbow-rotate {
@@ -103,6 +122,15 @@
             <div class="timer-label">alc</div>
             <div id="timer3" class="timer-display">00:00:00</div>
         </div>
+        
+        <div class="timer-row">
+            <div class="timer-label">gym</div>
+            <div class="gym-container">
+                <div id="upper-count" class="gym-box">5u</div>
+                <div id="lower-count" class="gym-box">5l</div>
+                <div id="next-workout" class="gym-box">0h</div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -116,10 +144,17 @@
         // alc: April 14, 2025 at 4 PM CST
         const alcStartTime = new Date('2025-04-14T16:00:00-05:00');
         
+        // Gym workout tracking
+        let upperDays = 5;
+        let lowerDays = 5;
+        let lastWorkoutDate = new Date('2025-04-30'); // Today
+        let workoutSchedule = ['upper', 'lower', 'rest']; // Upper, Lower, Rest cycle
+        let currentWorkoutIndex = 0; // Start with upper (today)
+        
         // Calculate seconds from start times
         function getElapsedSeconds(startTime) {
             const now = new Date();
-            return Math.floor((now - startTime) / 1000);
+            return (now - startTime) / 1000; // Return with decimal for millisecond precision
         }
         
         // Format seconds to DD:HH:MM:SS
@@ -127,9 +162,61 @@
             const days = Math.floor(totalSeconds / 86400);
             const hours = Math.floor((totalSeconds % 86400) / 3600);
             const minutes = Math.floor((totalSeconds % 3600) / 60);
-            const seconds = totalSeconds % 60;
+            const seconds = Math.floor(totalSeconds % 60);
             
             return `${days}d:${hours.toString().padStart(2, '0')}h:${minutes.toString().padStart(2, '0')}m:${seconds.toString().padStart(2, '0')}s`;
+        }
+        
+        // Calculate hours until next workout
+        function getHoursUntilNextWorkout() {
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            
+            // If it's before 7 PM today, next workout is at 7 PM today
+            if (now.getHours() < 19) {
+                const nextWorkout = new Date(today);
+                nextWorkout.setHours(19, 0, 0, 0);
+                return Math.ceil((nextWorkout - now) / (1000 * 60 * 60));
+            } 
+            // If it's after 7 PM, next workout is at 7 PM tomorrow
+            else {
+                const tomorrow = new Date(today);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                tomorrow.setHours(19, 0, 0, 0);
+                return Math.ceil((tomorrow - now) / (1000 * 60 * 60));
+            }
+        }
+        
+        // Update gym workout counts
+        function updateGymCounts() {
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const lastWorkoutDay = new Date(lastWorkoutDate.getFullYear(), lastWorkoutDate.getMonth(), lastWorkoutDate.getDate());
+            
+            // If it's a new day AND past 7PM, update the workout cycle
+            if (today > lastWorkoutDay && now.getHours() >= 19) {
+                // Advance to next workout in schedule
+                currentWorkoutIndex = (currentWorkoutIndex + 1) % workoutSchedule.length;
+                const todaysWorkout = workoutSchedule[currentWorkoutIndex];
+                
+                // Increment the appropriate counter
+                if (todaysWorkout === 'upper') {
+                    upperDays++;
+                } else if (todaysWorkout === 'lower') {
+                    lowerDays++;
+                }
+                
+                // Update the last workout date
+                lastWorkoutDate = new Date(today);
+            }
+            
+            // Calculate hours until next workout
+            const hoursUntilNext = getHoursUntilNextWorkout();
+            
+            // Update the displays
+            document.getElementById('upper-count').textContent = `${upperDays}u`;
+            document.getElementById('lower-count').textContent = `${lowerDays}l`;
+            document.getElementById('next-workout').textContent = `${hoursUntilNext}h`;
         }
         
         // Find the highest timer value
@@ -172,15 +259,17 @@
         document.getElementById('timer1').textContent = formatTime(getElapsedSeconds(zaStartTime));
         document.getElementById('timer2').textContent = formatTime(getElapsedSeconds(nicStartTime));
         document.getElementById('timer3').textContent = formatTime(getElapsedSeconds(alcStartTime));
+        updateGymCounts();
         updateHighestTimer();
         
-        // Update timers every second
+        // Update timers every 16ms (approx 60fps) for smooth millisecond updates
         setInterval(() => {
             document.getElementById('timer1').textContent = formatTime(getElapsedSeconds(zaStartTime));
             document.getElementById('timer2').textContent = formatTime(getElapsedSeconds(nicStartTime));
             document.getElementById('timer3').textContent = formatTime(getElapsedSeconds(alcStartTime));
+            updateGymCounts();
             updateHighestTimer();
-        }, 1000);
+        }, 16);
     </script>
 </body>
 </html>
